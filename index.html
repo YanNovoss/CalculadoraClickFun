@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Calculadora</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<div class="background-gradient"></div>
+
+<div class="container">
+    <div class="header">
+        <img src="logo.png" alt="Logo" class="logo-img">
+        <h1>Click Fun</h1>
+        <p>Calculadora de Precificação Inteligente</p>
+        <button id="toggleDarkMode" class="theme-toggle" title="Alternar tema">🌙</button>
+    </div>
+
+    <!-- ABAS DE MODO -->
+    <div class="mode-tabs">
+        <button id="tabPreco" class="tab-btn active" data-mode="preco">💰 Preço</button>
+        <button id="tabMargem" class="tab-btn" data-mode="margem">📊 Margem</button>
+        <button id="tabComparador" class="tab-btn" data-mode="comparador">⚖️ Comparador</button>
+        <button id="tabMultiplos" class="tab-btn" data-mode="multiplos">📦 Múltiplos</button>
+    </div>
+
+    <!-- MODO 1: CALCULAR PREÇO -->
+    <form id="modoPreco" class="input-grid modo-ativo">
+        <div class="input-group">
+            <label for="custo">Custo do Produto</label>
+            <div class="input-wrapper">
+                <span class="currency">R$</span>
+                <input id="custo" type="number" placeholder="0,00" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="frete">Frete</label>
+            <div class="input-wrapper">
+                <span class="currency">R$</span>
+                <input id="frete" type="number" placeholder="0,00" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="taxa">Taxa ML</label>
+            <div class="input-wrapper">
+                <span class="currency">%</span>
+                <input id="taxa" type="number" placeholder="0" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="imposto">Imposto</label>
+            <div class="input-wrapper">
+                <span class="currency">%</span>
+                <input id="imposto" type="number" placeholder="0" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="margem">Margem Desejada</label>
+            <div class="input-wrapper">
+                <span class="currency">%</span>
+                <input id="margem" type="number" placeholder="0" step="1">
+            </div>
+        </div>
+
+        <div class="input-group margem-presets">
+            <label>Margens Rápidas</label>
+            <div class="preset-buttons">
+                <button type="button" class="preset-btn" data-valor="15">15%</button>
+                <button type="button" class="preset-btn" data-valor="20">20%</button>
+                <button type="button" class="preset-btn" data-valor="30">30%</button>
+            </div>
+            <button type="button" class="preset-edit-btn" id="editPresetsBtn">⚙️ Personalizar</button>
+        </div>
+    </form>
+
+    <!-- MODO 2: VERIFICAR MARGEM -->
+    <form id="modoMargem" class="input-grid modo-inativo">
+        <div class="input-group">
+            <label for="custoRev">Custo do Produto</label>
+            <div class="input-wrapper">
+                <span class="currency">R$</span>
+                <input id="custoRev" type="number" placeholder="0,00" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="freteRev">Frete</label>
+            <div class="input-wrapper">
+                <span class="currency">R$</span>
+                <input id="freteRev" type="number" placeholder="0,00" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="taxaRev">Taxa ML</label>
+            <div class="input-wrapper">
+                <span class="currency">%</span>
+                <input id="taxaRev" type="number" placeholder="0" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="impostoRev">Imposto</label>
+            <div class="input-wrapper">
+                <span class="currency">%</span>
+                <input id="impostoRev" type="number" placeholder="0" step="1">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="precoVenda">Preço de Venda</label>
+            <div class="input-wrapper">
+                <span class="currency">R$</span>
+                <input id="precoVenda" type="number" placeholder="0,00" step="1">
+            </div>
+        </div>
+    </form>
+
+    <div class="button-group">
+        <button id="btnCalcular" class="btn-calcular">Calcular</button>
+        <button id="btnLimpar" class="btn-limpar">🔄 Limpar</button>
+    </div>
+
+    <!-- NOME PARA HISTÓRICO -->
+    <div class="nome-produto-section">
+        <input type="text" id="nomeProduto" placeholder="Nome do produto (opcional)" class="input-nome-produto">
+    </div>
+
+    <div class="resultado-container">
+        <p id="resultadoLabel" class="resultado-label">Preço de Venda</p>
+        <div class="resultado-wrapper">
+            <div id="resultado" class="resultado">R$ 0,00</div>
+            <button id="btnCopiar" class="btn-copiar" title="Copiar preço">📋</button>
+        </div>
+        <div id="viabilidade" class="badge-viabilidade"></div>
+        <p id="detalhes" class="detalhes"></p>
+    </div>
+
+    <!-- ALERTA DE MARGEM MÍNIMA -->
+    <div class="alerta-margem-section">
+        <label for="margem-minima">⚠️ Alerta de Margem Mínima (%):</label>
+        <input type="number" id="margem-minima" placeholder="Ex: 10" class="input-margem-minima" step="1">
+        <div id="alerta-margem" class="alerta-margem" style="display: none;"></div>
+    </div>
+
+    <!-- EXPORTAR RESULTADO -->
+    <div class="exportar-section">
+        <label>💾 Exportar Resultado:</label>
+        <div class="exportar-buttons">
+            <button id="btnExportarPNG" class="btn-exportar">📷 PNG</button>
+            <button id="btnExportarCSV" class="btn-exportar">📊 CSV</button>
+            <button id="btnExportarPDF" class="btn-exportar">📄 PDF</button>
+        </div>
+    </div>
+
+    <!-- GRÁFICO DE PIZZA -->
+    <div id="chartContainer" class="chart-container" style="display: none;">
+        <h3>📈 Composição do Preço</h3>
+        <canvas id="priceChart"></canvas>
+    </div>
+
+    <!-- BREAKDOWN DO PREÇO -->
+    <div id="breakdown" class="breakdown-container" style="display: none;">
+        <h3>📊 Detalhamento do Preço</h3>
+        <div class="breakdown-items">
+            <div class="breakdown-item">
+                <span>Custo</span>
+                <div class="breakdown-bar">
+                    <div id="bar-custo" class="bar custo"></div>
+                </div>
+                <span id="valor-custo" class="valor">R$ 0,00</span>
+            </div>
+            <div class="breakdown-item">
+                <span>Frete</span>
+                <div class="breakdown-bar">
+                    <div id="bar-frete" class="bar frete"></div>
+                </div>
+                <span id="valor-frete" class="valor">R$ 0,00</span>
+            </div>
+            <div class="breakdown-item">
+                <span>Taxa ML</span>
+                <div class="breakdown-bar">
+                    <div id="bar-taxa" class="bar taxa"></div>
+                </div>
+                <span id="valor-taxa" class="valor">R$ 0,00</span>
+            </div>
+            <div class="breakdown-item">
+                <span>Imposto</span>
+                <div class="breakdown-bar">
+                    <div id="bar-imposto" class="bar imposto"></div>
+                </div>
+                <span id="valor-imposto" class="valor">R$ 0,00</span>
+            </div>
+            <div class="breakdown-item destaque">
+                <span>💰 Lucro</span>
+                <div class="breakdown-bar">
+                    <div id="bar-lucro" class="bar lucro"></div>
+                </div>
+                <span id="valor-lucro" class="valor">R$ 0,00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODO 3: COMPARADOR -->
+    <div id="modoComparador" class="modo-inativo" style="display: none;">
+        <h3>⚖️ Comparador de Produtos</h3>
+        <div class="comparador-container">
+            <div class="comparador-item">
+                <h4>Produto 1</h4>
+                <input type="text" placeholder="Nome" class="comp-nome">
+                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Custo" class="comp-custo" step="1"></div>
+                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Frete" class="comp-frete" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Taxa" class="comp-taxa" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Imposto" class="comp-imposto" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Margem" class="comp-margem" step="1"></div>
+                <button type="button" class="btn-comparar">Calcular</button>
+                <div class="comp-resultado">-</div>
+            </div>
+            <div class="comparador-item">
+                <h4>Produto 2</h4>
+                <input type="text" placeholder="Nome" class="comp-nome">
+                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Custo" class="comp-custo" step="1"></div>
+                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Frete" class="comp-frete" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Taxa" class="comp-taxa" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Imposto" class="comp-imposto" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Margem" class="comp-margem" step="1"></div>
+                <button type="button" class="btn-comparar">Calcular</button>
+                <div class="comp-resultado">-</div>
+            </div>
+            <div class="comparador-item">
+                <h4>Produto 3</h4>
+                <input type="text" placeholder="Nome" class="comp-nome">
+                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Custo" class="comp-custo" step="1"></div>
+                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Frete" class="comp-frete" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Taxa" class="comp-taxa" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Imposto" class="comp-imposto" step="1"></div>
+                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Margem" class="comp-margem" step="1"></div>
+                <button type="button" class="btn-comparar">Calcular</button>
+                <div class="comp-resultado">-</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODO 4: MÚLTIPLOS PRODUTOS -->
+    <div id="modoMultiplos" class="modo-inativo" style="display: none;">
+        <h3>📦 Múltiplos Produtos</h3>
+        <button id="btnAdicionarProduto" class="btn-adicionar">➕ Adicionar Produto</button>
+        <div id="tabelaProdutos" class="tabela-multiplos">
+            <div class="tabela-header">
+                <div>Nome</div>
+                <div>Custo</div>
+                <div>Frete</div>
+                <div>Taxa %</div>
+                <div>Imposto %</div>
+                <div>Margem %</div>
+                <div>Preço Final</div>
+                <div>Lucro</div>
+                <div>Margem Real %</div>
+                <div>Ação</div>
+            </div>
+        </div>
+        <div class="resumo-multiplos" id="resumoMultiplos">
+            <p>Total: <strong id="totalProdutos">0</strong> produtos</p>
+            <p>Lucro Total: <strong id="lucroTotal">R$ 0,00</strong></p>
+            <p>Margem Média: <strong id="margemMedia">0%</strong></p>
+        </div>
+    </div>
+
+    <div class="historico">
+        <h3>📋 Últimos Cálculos</h3>
+        <div class="historico-controls">
+            <input type="text" id="filtroHistorico" placeholder="Filtrar por nome..." class="input-filtro">
+            <button id="btnLimparHistorico" class="btn-limpar-historico">Limpar Tudo</button>
+        </div>
+        <div id="listaHistorico"></div>
+    </div>
+</div>
+
+<!-- MODAL DE PRESETS PERSONALIZADOS -->
+<div id="presetsModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h2>Personalizar Margens Rápidas</h2>
+        <div class="presets-form">
+            <div class="preset-input-group">
+                <label>Preset 1 (%):</label>
+                <input type="number" id="preset1" placeholder="15">
+            </div>
+            <div class="preset-input-group">
+                <label>Preset 2 (%):</label>
+                <input type="number" id="preset2" placeholder="20">
+            </div>
+            <div class="preset-input-group">
+                <label>Preset 3 (%):</label>
+                <input type="number" id="preset3" placeholder="30">
+            </div>
+            <button id="savePresets" class="btn-save-presets">💾 Salvar Presets</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="SCRIPT.js"></script>
+</body>
+</html>
