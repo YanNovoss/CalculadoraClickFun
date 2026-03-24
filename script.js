@@ -1,34 +1,29 @@
 // =============================
+// ESTADO GLOBAL
+// =============================
+let modoAtual = "preco";
+let comparadorChart = null;
+let comparadorResultados = [null, null, null];
+
+// =============================
 // INICIALIZAÇÃO
 // =============================
 document.addEventListener("DOMContentLoaded", () => {
-    const btnCalcular = document.getElementById("btnCalcular");
-    const tabPreco = document.getElementById("tabPreco");
-    const tabMargem = document.getElementById("tabMargem");
-    const tabComparador = document.getElementById("tabComparador");
-    const tabMultiplos = document.getElementById("tabMultiplos");
-    const btnAdicionarProduto = document.getElementById("btnAdicionarProduto");
-    const presetBtns = document.querySelectorAll(".preset-btn");
+    // Tabs principais
+    document.getElementById("tabPreco").addEventListener("click", () => mudarModo("preco"));
+    document.getElementById("tabMargem").addEventListener("click", () => mudarModo("margem"));
+    document.getElementById("tabComparador").addEventListener("click", () => mudarModo("comparador"));
+    document.getElementById("tabMultiplos").addEventListener("click", () => mudarModo("multiplos"));
 
-    btnCalcular.addEventListener("click", calcular);
-    tabPreco.addEventListener("click", () => mudarModo("preco"));
-    tabMargem.addEventListener("click", () => mudarModo("margem"));
-    
-    // Abas Comparador e Múltiplos
-    if (tabComparador) {
-        tabComparador.addEventListener("click", () => mudarModoComparador("comparador"));
-    }
-    if (tabMultiplos) {
-        tabMultiplos.addEventListener("click", () => mudarModoComparador("multiplos"));
-    }
-    
-    // Botão Adicionar Produto
-    if (btnAdicionarProduto) {
-        btnAdicionarProduto.addEventListener("click", () => adicionarLinhaTabela());
-    }
+    // Calcular / Limpar
+    document.getElementById("btnCalcular").addEventListener("click", calcular);
+    document.getElementById("btnLimpar").addEventListener("click", limpar);
 
-    // Botões de margem pré-definida
-    presetBtns.forEach(btn => {
+    // Copiar resultado
+    document.getElementById("btnCopiar").addEventListener("click", copiarResultado);
+
+    // Presets de margem
+    document.querySelectorAll(".preset-btn").forEach(btn => {
         btn.addEventListener("click", (e) => {
             e.preventDefault();
             document.getElementById("margem").value = btn.dataset.valor;
@@ -36,74 +31,187 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    // Modal de presets
+    document.querySelector(".preset-edit-btn").addEventListener("click", () => {
+        carregarPresetsPersonalizados();
+        document.getElementById("presetsModal").style.display = "flex";
+    });
+    document.querySelector(".modal-close").addEventListener("click", () => {
+        document.getElementById("presetsModal").style.display = "none";
+    });
+    document.getElementById("presetsModal").addEventListener("click", (e) => {
+        if (e.target === document.getElementById("presetsModal"))
+            document.getElementById("presetsModal").style.display = "none";
+    });
+    document.getElementById("savePresets").addEventListener("click", salvarPresets);
+
+    // Comparador — botões calcular por produto
+    document.querySelectorAll(".btn-comparar").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const item = e.target.closest(".comparador-item");
+            calcularComparador(item);
+        });
+    });
+
+    // Botão IA do comparador
+    document.getElementById("btnSugestaoIA").addEventListener("click", sugerirPrecoIA);
+
+    // Múltiplos produtos
+    document.getElementById("btnAdicionarProduto").addEventListener("click", () => adicionarLinhaTabela());
+
+    // Filtro e limpeza do histórico
+    document.getElementById("filtroHistorico").addEventListener("input", renderizarHistorico);
+    document.getElementById("btnLimparHistorico").addEventListener("click", () => {
+        if (confirm("Limpar todo o histórico?")) {
+            localStorage.removeItem("historico");
+            renderizarHistorico();
+        }
+    });
+
+    // Margem mínima
+    document.getElementById("margem-minima").addEventListener("input", () => {
+        if (document.getElementById("resultado").innerText !== "R$ 0,00") verificarMargemMinima();
+    });
+
+    // Exportar
+    document.getElementById("btnExportarPNG").addEventListener("click", exportarPNG);
+    document.getElementById("btnExportarCSV").addEventListener("click", exportarCSV);
+    document.getElementById("btnExportarPDF").addEventListener("click", exportarPDF);
+
+    // Atalhos de teclado
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (modoAtual === "preco" || modoAtual === "margem")) {
+            calcular();
+        }
+        if (e.key === "Escape") limpar();
+    });
+
+    // Tema salvo
+    const toggleDarkMode = document.getElementById("toggleDarkMode");
+    if (localStorage.getItem("theme") === "dark") {
+        document.body.classList.add("dark-mode");
+        toggleDarkMode.textContent = "☀️";
+    }
+    toggleDarkMode.addEventListener("click", () => {
+        document.body.classList.toggle("dark-mode");
+        const isDark = document.body.classList.contains("dark-mode");
+        toggleDarkMode.textContent = isDark ? "☀️" : "🌙";
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+    });
+
+    // Inicializar
+    carregarPresetsPersonalizados();
     renderizarHistorico();
 });
 
-let modoAtual = "preco";
-
-
+// =============================
+// TROCA DE MODOS
+// =============================
 function mudarModo(modo) {
     modoAtual = modo;
 
-    const modoPreco = document.getElementById("modoPreco");
-    const modoMargem = document.getElementById("modoMargem");
-    const tabPreco = document.getElementById("tabPreco");
-    const tabMargem = document.getElementById("tabMargem");
-    const btnCalcular = document.getElementById("btnCalcular");
+    // Desativar tudo
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    ["modoPreco", "modoMargem", "modoComparador", "modoMultiplos"].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove("modo-ativo");
+        el.classList.add("modo-inativo");
+    });
+
+    const uiResultado = ["resultado", "viabilidade", "detalhes", "breakdown", "chartContainer"];
+    const btnCalc = document.getElementById("btnCalcular");
+    const btnLimp = document.getElementById("btnLimpar");
     const resultadoLabel = document.getElementById("resultadoLabel");
+    const nomeProdutoSection = document.querySelector(".nome-produto-section");
+    const alertaMargem = document.querySelector(".alerta-margem-section");
 
     if (modo === "preco") {
-        modoPreco.classList.add("modo-ativo");
-        modoPreco.classList.remove("modo-inativo");
-        modoMargem.classList.remove("modo-ativo");
-        modoMargem.classList.add("modo-inativo");
-
-        tabPreco.classList.add("active");
-        tabMargem.classList.remove("active");
-
-        btnCalcular.innerText = "Calcular Preço";
+        document.getElementById("tabPreco").classList.add("active");
+        ativar("modoPreco");
+        btnCalc.style.display = "block";
+        btnCalc.innerText = "Calcular Preço";
+        btnLimp.style.display = "block";
         resultadoLabel.innerText = "Preço de Venda";
-    } else {
-        modoPreco.classList.remove("modo-ativo");
-        modoPreco.classList.add("modo-inativo");
-        modoMargem.classList.add("modo-ativo");
-        modoMargem.classList.remove("modo-inativo");
-
-        tabPreco.classList.remove("active");
-        tabMargem.classList.add("active");
-
-        btnCalcular.innerText = "Calcular Margem";
+        uiResultado.forEach(id => mostrar(id));
+        nomeProdutoSection.style.display = "block";
+        alertaMargem.style.display = "block";
+        document.querySelector(".exportar-section").style.display = "block";
+        document.getElementById("breakdown").style.display = "none";
+        document.getElementById("chartContainer").style.display = "none";
+    } else if (modo === "margem") {
+        document.getElementById("tabMargem").classList.add("active");
+        ativar("modoMargem");
+        btnCalc.style.display = "block";
+        btnCalc.innerText = "Calcular Margem";
+        btnLimp.style.display = "block";
         resultadoLabel.innerText = "Margem Real";
+        uiResultado.forEach(id => mostrar(id));
+        nomeProdutoSection.style.display = "block";
+        alertaMargem.style.display = "block";
+        document.querySelector(".exportar-section").style.display = "block";
+        document.getElementById("breakdown").style.display = "none";
+        document.getElementById("chartContainer").style.display = "none";
+    } else if (modo === "comparador") {
+        document.getElementById("tabComparador").classList.add("active");
+        ativar("modoComparador");
+        btnCalc.style.display = "none";
+        btnLimp.style.display = "none";
+        uiResultado.forEach(id => esconder(id));
+        nomeProdutoSection.style.display = "none";
+        alertaMargem.style.display = "none";
+        document.querySelector(".exportar-section").style.display = "none";
+    } else if (modo === "multiplos") {
+        document.getElementById("tabMultiplos").classList.add("active");
+        ativar("modoMultiplos");
+        btnCalc.style.display = "none";
+        btnLimp.style.display = "none";
+        uiResultado.forEach(id => esconder(id));
+        nomeProdutoSection.style.display = "none";
+        alertaMargem.style.display = "none";
+        document.querySelector(".exportar-section").style.display = "block";
     }
-
 
     document.getElementById("resultado").innerText = "R$ 0,00";
     document.getElementById("detalhes").innerText = "";
     document.getElementById("viabilidade").textContent = "";
-    document.getElementById("breakdown").style.display = "none";
 }
 
+function ativar(id) {
+    const el = document.getElementById(id);
+    el.classList.remove("modo-inativo");
+    el.classList.add("modo-ativo");
+}
+function mostrar(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "";
+}
+function esconder(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+}
 
+// =============================
+// CALCULAR (dispatcher)
+// =============================
 function calcular() {
-    if (modoAtual === "preco") {
-        calcularPreco();
-    } else {
-        calcularMargem();
-    }
+    if (modoAtual === "preco") calcularPreco();
+    else calcularMargem();
 }
 
-
+// =============================
+// MODO 1: CALCULAR PREÇO
+// =============================
 function calcularPreco() {
-    let custo = parseFloat(document.getElementById("custo").value) || 0;
-    let frete = parseFloat(document.getElementById("frete").value) || 0;
-    let taxa = (parseFloat(document.getElementById("taxa").value) || 0) / 100;
-    let imposto = (parseFloat(document.getElementById("imposto").value) || 0) / 100;
-    let margem = (parseFloat(document.getElementById("margem").value) || 0) / 100;
+    const custo = parseFloat(document.getElementById("custo").value) || 0;
+    const frete = parseFloat(document.getElementById("frete").value) || 0;
+    const taxa = (parseFloat(document.getElementById("taxa").value) || 0) / 100;
+    const imposto = (parseFloat(document.getElementById("imposto").value) || 0) / 100;
+    const margem = (parseFloat(document.getElementById("margem").value) || 0) / 100;
 
-    let resultadoEl = document.getElementById("resultado");
-    let detalhesEl = document.getElementById("detalhes");
-    let viabilidadeEl = document.getElementById("viabilidade");
-    let breakdownEl = document.getElementById("breakdown");
+    const resultadoEl = document.getElementById("resultado");
+    const detalhesEl = document.getElementById("detalhes");
+    const viabilidadeEl = document.getElementById("viabilidade");
+    const breakdownEl = document.getElementById("breakdown");
 
     if ((taxa + imposto + margem) >= 1) {
         resultadoEl.innerText = "❌ Inválido";
@@ -114,7 +222,7 @@ function calcularPreco() {
         return;
     }
 
-    let preco = (custo + frete) / (1 - taxa - imposto - margem);
+    const preco = (custo + frete) / (1 - taxa - imposto - margem);
 
     if (preco <= 0 || !isFinite(preco)) {
         resultadoEl.innerText = "❌ Inválido";
@@ -128,79 +236,47 @@ function calcularPreco() {
     animarNumero(preco);
     vibrar();
 
-    let taxasAbsoluto = preco * taxa;
-    let impostosAbsoluto = preco * imposto;
-    let lucroValor = preco - custo - frete - taxasAbsoluto - impostosAbsoluto;
-    let margemReal = (lucroValor / preco) * 100;
+    const taxasAbsoluto = preco * taxa;
+    const impostosAbsoluto = preco * imposto;
+    const lucroValor = preco - custo - frete - taxasAbsoluto - impostosAbsoluto;
+    const margemReal = (lucroValor / preco) * 100;
 
     detalhesEl.innerText = `Lucro: R$ ${lucroValor.toFixed(2)} • Margem: ${margemReal.toFixed(1)}%`;
-    
 
-    let classe = "viavel";
-    let mensagem = "✅ Margem Excelente";
-    
-    if (margemReal < 10) {
-        classe = "prejuizo";
-        mensagem = "❌ Margem Insuficiente";
+    let classe, mensagem;
+    if (margemReal < 0) {
+        classe = "prejuizo"; mensagem = "❌ Prejuízo";
+    } else if (margemReal < 10) {
+        classe = "prejuizo"; mensagem = "❌ Margem Insuficiente";
     } else if (margemReal < 15) {
-        classe = "atencao";
-        mensagem = "⚠️ Margem Apertada";
+        classe = "atencao"; mensagem = "⚠️ Margem Apertada";
+    } else {
+        classe = "viavel"; mensagem = "✅ Margem Excelente";
     }
-    
+
     viabilidadeEl.className = `badge-viabilidade ${classe}`;
     viabilidadeEl.textContent = mensagem;
     detalhesEl.className = `detalhes ${classe}`;
 
     exibirBreakdown(custo, frete, taxasAbsoluto, impostosAbsoluto, lucroValor, preco);
-
+    atualizarGrafico(custo, frete, taxasAbsoluto, impostosAbsoluto, lucroValor);
     verificarMargemMinima();
-
-    salvarHistoricoComNome({
-        tipo: "PREÇO",
-        valor: preco,
-        margem: (margem * 100).toFixed(1)
-    });
-}
-
-
-function exibirBreakdown(custo, frete, taxa, imposto, lucro, precoTotal) {
-    let breakdownEl = document.getElementById("breakdown");
-    breakdownEl.style.display = "block";
-
-    // Calcular percentuais para as barras
-    let custoPercent = (custo / precoTotal) * 100;
-    let fretePercent = (frete / precoTotal) * 100;
-    let taxaPercent = (taxa / precoTotal) * 100;
-    let impostoPercent = (imposto / precoTotal) * 100;
-    let lucroPercent = (lucro / precoTotal) * 100;
-
-    // Atualizar barras
-    document.getElementById("bar-custo").style.width = custoPercent + "%";
-    document.getElementById("bar-frete").style.width = fretePercent + "%";
-    document.getElementById("bar-taxa").style.width = taxaPercent + "%";
-    document.getElementById("bar-imposto").style.width = impostoPercent + "%";
-    document.getElementById("bar-lucro").style.width = lucroPercent + "%";
-
-    // Atualizar valores
-    document.getElementById("valor-custo").textContent = "R$ " + custo.toFixed(2);
-    document.getElementById("valor-frete").textContent = "R$ " + frete.toFixed(2);
-    document.getElementById("valor-taxa").textContent = "R$ " + taxa.toFixed(2);
-    document.getElementById("valor-imposto").textContent = "R$ " + imposto.toFixed(2);
-    document.getElementById("valor-lucro").textContent = "R$ " + lucro.toFixed(2);
+    salvarHistoricoComNome({ tipo: "PREÇO", valor: preco, margem: (margem * 100).toFixed(1) });
 }
 
 // =============================
 // MODO 2: CALCULAR MARGEM
 // =============================
 function calcularMargem() {
-    let custo = parseFloat(document.getElementById("custoRev").value) || 0;
-    let frete = parseFloat(document.getElementById("freteRev").value) || 0;
-    let taxa = (parseFloat(document.getElementById("taxaRev").value) || 0) / 100;
-    let imposto = (parseFloat(document.getElementById("impostoRev").value) || 0) / 100;
-    let precoVenda = parseFloat(document.getElementById("precoVenda").value) || 0;
+    const custo = parseFloat(document.getElementById("custoRev").value) || 0;
+    const frete = parseFloat(document.getElementById("freteRev").value) || 0;
+    const taxa = (parseFloat(document.getElementById("taxaRev").value) || 0) / 100;
+    const imposto = (parseFloat(document.getElementById("impostoRev").value) || 0) / 100;
+    const precoVenda = parseFloat(document.getElementById("precoVenda").value) || 0;
 
-    let resultadoEl = document.getElementById("resultado");
-    let detalhesEl = document.getElementById("detalhes");
+    const resultadoEl = document.getElementById("resultado");
+    const detalhesEl = document.getElementById("detalhes");
+    const viabilidadeEl = document.getElementById("viabilidade");
 
     if (precoVenda <= 0) {
         resultadoEl.innerText = "❌ Inválido";
@@ -209,260 +285,70 @@ function calcularMargem() {
         return;
     }
 
-    // Cálculo da margem real
-    let custoTotal = custo + frete;
-    let taxasAbsoluto = precoVenda * taxa;
-    let impostosAbsoluto = precoVenda * imposto;
-    let lucro = precoVenda - custoTotal - taxasAbsoluto - impostosAbsoluto;
-    let margemReal = (lucro / precoVenda) * 100;
+    const taxasAbsoluto = precoVenda * taxa;
+    const impostosAbsoluto = precoVenda * imposto;
+    const lucro = precoVenda - custo - frete - taxasAbsoluto - impostosAbsoluto;
+    const margemReal = (lucro / precoVenda) * 100;
 
     animarNumero(margemReal);
     vibrar();
 
-    // Status
-    let status = "✅ Viável";
-    let classe = "viavel";
-
-    if (margemReal < 5) {
-        status = "⚠️ Margem muito baixa";
-        classe = "prejuizo";
+    // BUG CORRIGIDO: ordem de verificação (< 0 antes de < 5)
+    let status, classe;
+    if (margemReal < 0) {
+        status = "❌ Prejuízo"; classe = "prejuizo";
+    } else if (margemReal < 5) {
+        status = "⚠️ Margem muito baixa"; classe = "atencao";
     } else if (margemReal < 10) {
-        status = "⚠️ Margem apertada";
-        classe = "atencao";
-    } else if (margemReal < 0) {
-        status = "❌ Prejudicial";
-        classe = "prejuizo";
+        status = "⚠️ Margem apertada"; classe = "atencao";
+    } else {
+        status = "✅ Viável"; classe = "viavel";
     }
 
     detalhesEl.innerText = `${status} • Lucro: R$ ${lucro.toFixed(2)}`;
     detalhesEl.className = `detalhes ${classe}`;
-
-    // Para exibir como porcentagem
+    viabilidadeEl.className = `badge-viabilidade ${classe}`;
+    viabilidadeEl.textContent = status;
     resultadoEl.innerText = `${margemReal.toFixed(1)}%`;
 
-    // Verificar margem mínima
     verificarMargemMinima();
-
-    salvarHistoricoComNome({
-        tipo: "MARGEM",
-        valor: margemReal.toFixed(1),
-        precoVenda: precoVenda
-    });
+    salvarHistoricoComNome({ tipo: "MARGEM", valor: margemReal.toFixed(1), precoVenda });
 }
 
 // =============================
-// ANIMAÇÃO DE NÚMERO
+// BREAKDOWN
 // =============================
-function animarNumero(valorFinal) {
-    let el = document.getElementById("resultado");
-    let inicio = 0;
-    let duracao = 600;
-    let start = null;
-    let isPercentage = modoAtual === "margem";
-
-    function frame(t) {
-        if (!start) start = t;
-        let progress = Math.min((t - start) / duracao, 1);
-        let valor = inicio + (valorFinal - inicio) * progress;
-
-        if (isPercentage) {
-            el.innerText = `${valor.toFixed(1)}%`;
-        } else {
-            el.innerText = "R$ " + valor.toFixed(2);
-        }
-
-        if (progress < 1) {
-            requestAnimationFrame(frame);
-        }
-    }
-
-    requestAnimationFrame(frame);
+function exibirBreakdown(custo, frete, taxa, imposto, lucro, precoTotal) {
+    document.getElementById("breakdown").style.display = "block";
+    const pct = v => ((v / precoTotal) * 100).toFixed(1) + "%";
+    document.getElementById("bar-custo").style.width = pct(custo);
+    document.getElementById("bar-frete").style.width = pct(frete);
+    document.getElementById("bar-taxa").style.width = pct(taxa);
+    document.getElementById("bar-imposto").style.width = pct(imposto);
+    document.getElementById("bar-lucro").style.width = pct(lucro);
+    document.getElementById("valor-custo").textContent = "R$ " + custo.toFixed(2);
+    document.getElementById("valor-frete").textContent = "R$ " + frete.toFixed(2);
+    document.getElementById("valor-taxa").textContent = "R$ " + taxa.toFixed(2);
+    document.getElementById("valor-imposto").textContent = "R$ " + imposto.toFixed(2);
+    document.getElementById("valor-lucro").textContent = "R$ " + lucro.toFixed(2);
 }
 
 // =============================
-// VIBRAÇÃO
+// GRÁFICO PIZZA (modo Preço)
 // =============================
-function vibrar() {
-    if (navigator.vibrate) {
-        navigator.vibrate(50);
-    }
-}
+function atualizarGrafico(custo, frete, taxa, imposto, lucro) {
+    const container = document.getElementById("chartContainer");
+    container.style.display = "block";
+    const ctx = document.getElementById("priceChart").getContext("2d");
+    if (window.priceChart) window.priceChart.destroy();
 
-// =============================
-// HISTÓRICO
-// =============================
-function salvarHistorico(dados) {
-    let historico = JSON.parse(localStorage.getItem("historico")) || [];
-    historico.unshift(dados);
-    localStorage.setItem("historico", JSON.stringify(historico));
-    renderizarHistorico();
-}
-
-function renderizarHistorico() {
-    let lista = document.getElementById("listaHistorico");
-    if (!lista) return;
-
-    let historico = JSON.parse(localStorage.getItem("historico")) || [];
-    lista.innerHTML = "";
-
-    historico.slice(0, 5).forEach(item => {
-        let div = document.createElement("div");
-        div.className = "item-historico";
-
-        if (item.tipo === "PREÇO") {
-            div.innerText = `💰 R$ ${item.valor.toFixed(2)} (Margem: ${item.margem}%)`;
-        } else {
-            div.innerText = `📊 ${item.valor}% (Preço: R$ ${item.precoVenda.toFixed(2)})`;
-        }
-
-        lista.appendChild(div);
-    });
-}
-
-// ====================== NOVOS RECURSOS ======================
-
-// 1. TOGGLE TEMA ESCURO
-const toggleDarkMode = document.getElementById("toggleDarkMode");
-if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark-mode");
-    toggleDarkMode.textContent = "☀️";
-}
-
-toggleDarkMode.addEventListener("click", () => {
-    document.body.classList.toggle("dark-mode");
-    const isDark = document.body.classList.contains("dark-mode");
-    toggleDarkMode.textContent = isDark ? "☀️" : "🌙";
-    localStorage.setItem("theme", isDark ? "dark" : "light");
-});
-
-// 2. BOTÃO LIMPAR
-document.getElementById("btnLimpar").addEventListener("click", () => {
-    document.getElementById("modoPreco").reset();
-    document.getElementById("modoMargem").reset();
-    document.getElementById("resultado").innerText = "R$ 0,00";
-    document.getElementById("resultado").className = "resultado";
-    document.getElementById("detalhes").innerText = "";
-    document.getElementById("viabilidade").innerHTML = "";
-    const breakdown = document.getElementById("breakdown");
-    if (breakdown) breakdown.style.display = "none";
-    const chart = window.priceChart;
-    if (chart) chart.destroy();
-    window.priceChart = null;
-});
-
-// 3. COPIAR PARA CLIPBOARD
-document.getElementById("btnCopiar").addEventListener("click", async () => {
-    const resultado = document.getElementById("resultado").innerText;
-    try {
-        await navigator.clipboard.writeText(resultado);
-        const btn = document.getElementById("btnCopiar");
-        btn.classList.add("copiado");
-        btn.textContent = "✓";
-        setTimeout(() => {
-            btn.classList.remove("copiado");
-            btn.textContent = "📋";
-        }, 2000);
-    } catch (err) {
-        alert("Erro ao copiar: " + err);
-    }
-});
-
-// 5. PRESETS PERSONALIZADOS
-const presetsModal = document.getElementById("presetsModal");
-const editPresetsBtn = document.querySelector(".preset-edit-btn");
-const modalClose = document.querySelector(".modal-close");
-const btnSavePresets = document.querySelector(".btn-save-presets");
-
-const presetBtnsList = document.querySelectorAll(".preset-btn");
-
-function carregarPresetsPersonalizados() {
-    const presetsData = JSON.parse(localStorage.getItem("presetsPersonalizados")) || {
-        preset1: 15,
-        preset2: 20,
-        preset3: 30
-    };
-    
-    const inputs = {
-        preset1: document.getElementById("preset1"),
-        preset2: document.getElementById("preset2"),
-        preset3: document.getElementById("preset3")
-    };
-    
-    Object.keys(presetsData).forEach(key => {
-        if (inputs[key]) inputs[key].value = presetsData[key];
-    });
-    
-    atualizarBotoesPreset(presetsData);
-}
-
-function atualizarBotoesPreset(presets) {
-    presetBtnsList.forEach((btn, index) => {
-        const key = `preset${index + 1}`;
-        btn.textContent = `${presets[key]}%`;
-        btn.dataset.valor = presets[key];
-    });
-}
-
-editPresetsBtn.addEventListener("click", () => {
-    carregarPresetsPersonalizados();
-    presetsModal.style.display = "flex";
-});
-
-modalClose.addEventListener("click", () => {
-    presetsModal.style.display = "none";
-});
-
-presetsModal.addEventListener("click", (e) => {
-    if (e.target === presetsModal) {
-        presetsModal.style.display = "none";
-    }
-});
-
-btnSavePresets.addEventListener("click", () => {
-    const presetsData = {
-        preset1: parseFloat(document.getElementById("preset1").value) || 15,
-        preset2: parseFloat(document.getElementById("preset2").value) || 20,
-        preset3: parseFloat(document.getElementById("preset3").value) || 30
-    };
-    
-    localStorage.setItem("presetsPersonalizados", JSON.stringify(presetsData));
-    atualizarBotoesPreset(presetsData);
-    alert("Presets atualizados com sucesso!");
-    presetsModal.style.display = "none";
-});
-
-// 6. GRÁFICO COM CHART.JS
-function atualizarGrafico(custo, frete, taxa, imposto, lucro, preco) {
-    const ctx = document.getElementById("priceChart");
-    if (!ctx) return;
-    
-    const ctxContext = ctx.getContext("2d");
-    
-    // Limpar gráfico anterior
-    if (window.priceChart) {
-        window.priceChart.destroy();
-    }
-    
-    // Arredondar valores para visualização
-    const custoArred = parseFloat(custo) || 0;
-    const freteArred = parseFloat(frete) || 0;
-    const taxaValor = (custoArred * (parseFloat(taxa) || 0)) / 100;
-    const impostoValor = (custoArred * (parseFloat(imposto) || 0)) / 100;
-    const lucroArred = parseFloat(lucro) || 0;
-    
-    window.priceChart = new Chart(ctxContext, {
+    window.priceChart = new Chart(ctx, {
         type: "doughnut",
         data: {
-            labels: ["Custo", "Frete", "Taxa", "Imposto", "Lucro"],
+            labels: ["Custo", "Frete", "Taxa ML", "Imposto", "Lucro"],
             datasets: [{
-                data: [custoArred, freteArred, taxaValor, impostoValor, lucroArred],
-                backgroundColor: [
-                    "#e74c3c",
-                    "#3498db",
-                    "#f39c12",
-                    "#e67e22",
-                    "#2ecc71"
-                ],
+                data: [custo, frete, taxa, imposto, Math.max(lucro, 0)],
+                backgroundColor: ["#e74c3c", "#3498db", "#f39c12", "#e67e22", "#2ecc71"],
                 borderColor: "#fff",
                 borderWidth: 2
             }]
@@ -474,16 +360,13 @@ function atualizarGrafico(custo, frete, taxa, imposto, lucro, preco) {
                     position: "bottom",
                     labels: {
                         font: { family: "'Poppins', sans-serif" },
-                        padding: 15,
+                        padding: 12,
                         color: document.body.classList.contains("dark-mode") ? "#eceff1" : "#333"
                     }
                 },
                 tooltip: {
                     callbacks: {
-                        label: (context) => {
-                            const value = context.parsed;
-                            return `R$ ${value.toFixed(2).replace(".", ",")}`;
-                        }
+                        label: ctx => `R$ ${ctx.parsed.toFixed(2).replace(".", ",")}`
                     }
                 }
             }
@@ -491,147 +374,423 @@ function atualizarGrafico(custo, frete, taxa, imposto, lucro, preco) {
     });
 }
 
-// Integrar gráfico nas funções de cálculo existentes
-const calcularPrecoOriginal = calcularPreco;
-window.calcularPreco = function() {
-    calcularPrecoOriginal.call(this);
-    
-    let custo = parseFloat(document.getElementById("custo").value) || 0;
-    let frete = parseFloat(document.getElementById("frete").value) || 0;
-    let taxa = parseFloat(document.getElementById("taxa").value) || 0;
-    let imposto = parseFloat(document.getElementById("imposto").value) || 0;
-    let margem = (parseFloat(document.getElementById("margem").value) || 0) / 100;
+// =============================
+// MODO 3: COMPARADOR — CORRIGIDO
+// =============================
+function calcularComparador(item) {
+    const custo = parseFloat(item.querySelector(".comp-custo").value) || 0;
+    const frete = parseFloat(item.querySelector(".comp-frete").value) || 0;
+    const taxa = (parseFloat(item.querySelector(".comp-taxa").value) || 0) / 100;
+    const imposto = (parseFloat(item.querySelector(".comp-imposto").value) || 0) / 100;
+    const preco = parseFloat(item.querySelector(".comp-preco").value) || 0;
+    const index = parseInt(item.dataset.index);
 
-    let preco = (custo + frete) / (1 - taxa/100 - imposto/100 - margem);
-    
-    if (preco > 0 && isFinite(preco)) {
-        let taxasAbsoluto = preco * (taxa / 100);
-        let impostosAbsoluto = preco * (imposto / 100);
-        let lucroValor = preco - custo - frete - taxasAbsoluto - impostosAbsoluto;
-        
-        atualizarGrafico(custo, frete, taxa, imposto, lucroValor, preco);
+    const resultadoEl = item.querySelector(".comp-resultado");
+
+    if (preco === 0 || (custo + frete) === 0) {
+        resultadoEl.innerHTML = `<span class="comp-invalido">⚠️ Dados inválidos</span>`;
+        comparadorResultados[index] = null;
+        atualizarGraficoComparador();
+        return;
     }
-};
 
-// 7. ATALHOS DE TECLADO
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-        document.getElementById("btnCalcular").click();
-    }
-    if (e.key === "Escape") {
-        document.getElementById("btnLimpar").click();
-    }
-});
+    const lucro = preco - custo - frete - (preco * taxa) - (preco * imposto);
+    const margemReal = (lucro / preco) * 100;
 
-// INICIALIZAR PRESETS AO CARREGAR
-carregarPresetsPersonalizados();
+    let classe = margemReal >= 15 ? "viavel" : margemReal >= 10 ? "atencao" : "prejuizo";
+    const nome = item.querySelector(".comp-nome").value || `Produto ${index + 1}`;
 
-// ====================== NOVOS RECURSOS ======================
+    resultadoEl.innerHTML = `
+        <div class="comp-preco">R$ ${preco.toFixed(2)}</div>
+        <div class="comp-detalhe ${classe}">Lucro: R$ ${lucro.toFixed(2)}</div>
+        <div class="comp-detalhe ${classe}">Margem: ${margemReal.toFixed(1)}%</div>
+    `;
 
-// 8. HISTÓRICO COM NOME OPCIONAL
-function salvarHistoricoComNome(dados) {
-    let historico = JSON.parse(localStorage.getItem("historico")) || [];
-    const nomeProduto = document.getElementById("nomeProduto").value || "Sem nome";
-    
-    const item = {
-        ...dados,
-        nome: nomeProduto,
-        data: new Date().toLocaleString()
-    };
-    
-    historico.unshift(item);
-    localStorage.setItem("historico", JSON.stringify(historico));
-    renderizarHistorico();
-    document.getElementById("nomeProduto").value = "";
+    comparadorResultados[index] = { nome, preco, lucro, margemReal, custo, frete, taxa: preco * taxa, imposto: preco * imposto };
+    atualizarGraficoComparador();
 }
 
-function renderizarHistoricoAtualizado() {
-    let lista = document.getElementById("listaHistorico");
-    if (!lista) return;
+function atualizarGraficoComparador() {
+    const validos = comparadorResultados.filter(r => r !== null);
+    const container = document.getElementById("comparadorChartContainer");
 
-    let historico = JSON.parse(localStorage.getItem("historico")) || [];
-    const filtro = document.getElementById("filtroHistorico")?.value.toLowerCase() || "";
-    
-    lista.innerHTML = "";
+    if (validos.length < 2) {
+        container.style.display = "none";
+        document.getElementById("btnSugestaoIA").style.display = "none";
+        return;
+    }
 
-    const filtrado = historico.filter(item => 
-        item.nome.toLowerCase().includes(filtro)
-    );
+    container.style.display = "block";
+    document.getElementById("btnSugestaoIA").style.display = "block";
 
-    filtrado.slice(0, 10).forEach((item, index) => {
-        let div = document.createElement("div");
-        div.className = "item-historico";
+    const ctx = document.getElementById("comparadorChart").getContext("2d");
+    if (comparadorChart) comparadorChart.destroy();
 
-        if (item.tipo === "PREÇO") {
-            div.innerHTML = `
-                <div>
-                    <strong>${item.nome}</strong> - 💰 R$ ${item.valor.toFixed(2)}
-                    <br><small>${item.data}</small>
-                </div>
-                <button class="btn-remover-item" data-index="${historico.indexOf(item)}">✕</button>
-            `;
-        } else {
-            div.innerHTML = `
-                <div>
-                    <strong>${item.nome}</strong> - 📊 ${item.valor}%
-                    <br><small>${item.data}</small>
-                </div>
-                <button class="btn-remover-item" data-index="${historico.indexOf(item)}">✕</button>
-            `;
+    const isDark = document.body.classList.contains("dark-mode");
+    const textColor = isDark ? "#eceff1" : "#333";
+
+    comparadorChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: validos.map(r => r.nome),
+            datasets: [
+                {
+                    label: "Preço Final (R$)",
+                    data: validos.map(r => r.preco),
+                    backgroundColor: "rgba(52, 152, 219, 0.8)",
+                    borderColor: "#3498db",
+                    borderWidth: 2,
+                    borderRadius: 6
+                },
+                {
+                    label: "Lucro (R$)",
+                    data: validos.map(r => r.lucro),
+                    backgroundColor: "rgba(46, 204, 113, 0.8)",
+                    borderColor: "#2ecc71",
+                    borderWidth: 2,
+                    borderRadius: 6
+                },
+                {
+                    label: "Margem (%)",
+                    data: validos.map(r => r.margemReal),
+                    backgroundColor: "rgba(241, 196, 15, 0.8)",
+                    borderColor: "#f1c40f",
+                    borderWidth: 2,
+                    borderRadius: 6,
+                    yAxisID: "y2"
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: { font: { family: "'Poppins', sans-serif", size: 11 }, color: textColor, padding: 12 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const v = ctx.parsed.y;
+                            return ctx.dataset.label.includes("%")
+                                ? `${ctx.dataset.label}: ${v.toFixed(1)}%`
+                                : `${ctx.dataset.label}: R$ ${v.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: textColor, font: { family: "'Poppins', sans-serif" } }, grid: { display: false } },
+                y: {
+                    position: "left",
+                    ticks: { color: textColor, callback: v => `R$ ${v.toFixed(0)}`, font: { family: "'Poppins', sans-serif", size: 10 } },
+                    grid: { color: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)" }
+                },
+                y2: {
+                    position: "right",
+                    ticks: { color: "#f1c40f", callback: v => `${v.toFixed(0)}%`, font: { family: "'Poppins', sans-serif", size: 10 } },
+                    grid: { display: false }
+                }
+            }
         }
-
-        lista.appendChild(div);
     });
+}
 
-    // Adicionar event listeners para remover itens
-    document.querySelectorAll(".btn-remover-item").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const index = parseInt(e.target.dataset.index);
-            historico.splice(index, 1);
-            localStorage.setItem("historico", JSON.stringify(historico));
-            renderizarHistoricoAtualizado();
+// =============================
+// SUGESTÃO DE PREÇO VIA IA
+// =============================
+async function sugerirPrecoIA() {
+    const validos = comparadorResultados.filter(r => r !== null);
+    if (validos.length < 2) return;
+
+    const btn = document.getElementById("btnSugestaoIA");
+    const boxIA = document.getElementById("iaResultBox");
+    const textoIA = document.getElementById("iaResultText");
+
+    btn.disabled = true;
+    btn.innerHTML = "⏳ Analisando...";
+    boxIA.style.display = "block";
+    textoIA.innerHTML = `<span class="ia-loading">🤖 A IA está analisando os produtos...</span>`;
+
+    const resumo = validos.map((r, i) =>
+        `Produto ${i + 1} — "${r.nome}": Preço R$${r.preco.toFixed(2)}, Custo R$${(r.custo + r.frete).toFixed(2)}, Taxa ML R$${r.taxa.toFixed(2)}, Imposto R$${r.imposto.toFixed(2)}, Lucro R$${r.lucro.toFixed(2)}, Margem ${r.margemReal.toFixed(1)}%`
+    ).join("\n");
+
+    const prompt = `Você é um especialista em precificação para marketplace (Mercado Livre). Analise os dados abaixo e dê uma recomendação estratégica objetiva em português brasileiro.
+
+Produtos comparados:
+${resumo}
+
+Responda em 3 blocos curtos:
+1. 🏆 Melhor opção: qual produto tem a melhor relação custo-benefício e por quê (2 linhas).
+2. ⚡ Ponto de atenção: o principal risco ou problema identificado (2 linhas).
+3. 💡 Sugestão prática: uma ação concreta para melhorar a rentabilidade (2 linhas).
+
+Seja direto e prático. Não use markdown com asteriscos, apenas texto simples.`;
+
+    try {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "claude-sonnet-4-20250514",
+                max_tokens: 1000,
+                messages: [{ role: "user", content: prompt }]
+            })
         });
+
+        const data = await response.json();
+        const texto = data.content?.map(b => b.text || "").join("") || "Não foi possível obter uma resposta.";
+
+        textoIA.innerHTML = texto
+            .split("\n")
+            .filter(l => l.trim())
+            .map(l => `<p>${l}</p>`)
+            .join("");
+    } catch (err) {
+        textoIA.innerHTML = `<span class="ia-erro">❌ Erro ao conectar com a IA. Verifique sua conexão.</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = "🧠 Sugestão da IA";
+    }
+}
+
+// =============================
+// MODO 4: MÚLTIPLOS PRODUTOS
+// =============================
+function adicionarLinhaTabela(dados = {}) {
+    const tabela = document.getElementById("tabelaProdutos");
+    const id = Date.now();
+
+    const row = document.createElement("div");
+    row.className = "tabela-row";
+    row.dataset.id = id;
+
+    row.innerHTML = `
+        <div class="row-campo">
+            <label class="row-label">Nome</label>
+            <input type="text" placeholder="Nome" class="col-nome" value="${dados.nome || ''}">
+        </div>
+        <div class="row-campo">
+            <label class="row-label">Custo R$</label>
+            <input type="number" placeholder="0" class="col-custo" step="0.01" value="${dados.custo || ''}">
+        </div>
+        <div class="row-campo">
+            <label class="row-label">Frete R$</label>
+            <input type="number" placeholder="0" class="col-frete" step="0.01" value="${dados.frete || ''}">
+        </div>
+        <div class="row-campo">
+            <label class="row-label">Taxa %</label>
+            <input type="number" placeholder="0" class="col-taxa" step="0.1" value="${dados.taxa || ''}">
+        </div>
+        <div class="row-campo">
+            <label class="row-label">Imposto %</label>
+            <input type="number" placeholder="0" class="col-imposto" step="0.1" value="${dados.imposto || ''}">
+        </div>
+        <div class="row-campo">
+            <label class="row-label">Margem %</label>
+            <input type="number" placeholder="0" class="col-margem" step="0.1" value="${dados.margem || ''}">
+        </div>
+        <div class="row-resultados">
+            <div class="row-result-item">
+                <span class="row-result-label">Preço</span>
+                <span class="col-preco row-result-valor">—</span>
+            </div>
+            <div class="row-result-item">
+                <span class="row-result-label">Lucro</span>
+                <span class="col-lucro row-result-valor">—</span>
+            </div>
+            <div class="row-result-item">
+                <span class="row-result-label">Margem Real</span>
+                <span class="col-margem-real row-result-valor">—</span>
+            </div>
+            <button type="button" class="btn-remover-linha" data-id="${id}">🗑️</button>
+        </div>
+    `;
+
+    tabela.appendChild(row);
+
+    row.querySelectorAll("input").forEach(input => {
+        input.addEventListener("input", () => calcularLinhaTabela(row));
+    });
+
+    row.querySelector(".btn-remover-linha").addEventListener("click", () => {
+        row.remove();
+        atualizarResumoMultiplos();
     });
 }
 
-// Filtro de histórico
-const filtroHistorico = document.getElementById("filtroHistorico");
-if (filtroHistorico) {
-    filtroHistorico.addEventListener("input", renderizarHistoricoAtualizado);
+function calcularLinhaTabela(row) {
+    const custo = parseFloat(row.querySelector(".col-custo").value) || 0;
+    const frete = parseFloat(row.querySelector(".col-frete").value) || 0;
+    const taxa = (parseFloat(row.querySelector(".col-taxa").value) || 0) / 100;
+    const imposto = (parseFloat(row.querySelector(".col-imposto").value) || 0) / 100;
+    const margem = (parseFloat(row.querySelector(".col-margem").value) || 0) / 100;
+
+    const denominador = 1 - taxa - imposto - margem;
+    const precoEl = row.querySelector(".col-preco");
+    const lucroEl = row.querySelector(".col-lucro");
+    const margemEl = row.querySelector(".col-margem-real");
+
+    if (denominador <= 0) {
+        precoEl.textContent = "⚠️";
+        lucroEl.textContent = "—";
+        margemEl.textContent = "—";
+        row.className = "tabela-row status-invalido";
+        atualizarResumoMultiplos();
+        return;
+    }
+
+    const preco = (custo + frete) / denominador;
+    if (preco > 0 && isFinite(preco)) {
+        const lucro = preco - custo - frete - (preco * taxa) - (preco * imposto);
+        const margemReal = (lucro / preco) * 100;
+
+        precoEl.textContent = `R$ ${preco.toFixed(2)}`;
+        lucroEl.textContent = `R$ ${lucro.toFixed(2)}`;
+        margemEl.textContent = `${margemReal.toFixed(1)}%`;
+
+        row.className = "tabela-row " + (
+            margemReal < 0 ? "status-prejuizo" :
+            margemReal < 10 ? "status-atencao" :
+            "status-viavel"
+        );
+    } else {
+        precoEl.textContent = "—";
+        lucroEl.textContent = "—";
+        margemEl.textContent = "—";
+        row.className = "tabela-row";
+    }
+
+    atualizarResumoMultiplos();
 }
 
-// Limpar todo histórico
-const btnLimparHistorico = document.getElementById("btnLimparHistorico");
-if (btnLimparHistorico) {
-    btnLimparHistorico.addEventListener("click", () => {
-        if (confirm("Limpar todo o histórico?")) {
-            localStorage.removeItem("historico");
-            renderizarHistoricoAtualizado();
+function atualizarResumoMultiplos() {
+    const linhas = document.querySelectorAll(".tabela-row");
+    let lucroTotal = 0, margemTotal = 0, produtosValidos = 0;
+
+    linhas.forEach(row => {
+        const custo = parseFloat(row.querySelector(".col-custo").value) || 0;
+        const frete = parseFloat(row.querySelector(".col-frete").value) || 0;
+        const taxa = (parseFloat(row.querySelector(".col-taxa").value) || 0) / 100;
+        const imposto = (parseFloat(row.querySelector(".col-imposto").value) || 0) / 100;
+        const margem = (parseFloat(row.querySelector(".col-margem").value) || 0) / 100;
+        const den = 1 - taxa - imposto - margem;
+        if (den > 0) {
+            const preco = (custo + frete) / den;
+            if (preco > 0 && isFinite(preco)) {
+                const lucro = preco - custo - frete - (preco * taxa) - (preco * imposto);
+                lucroTotal += lucro;
+                margemTotal += (lucro / preco) * 100;
+                produtosValidos++;
+            }
         }
     });
+
+    document.getElementById("totalProdutos").textContent = linhas.length;
+    document.getElementById("lucroTotal").textContent = `R$ ${lucroTotal.toFixed(2)}`;
+    document.getElementById("margemMedia").textContent = produtosValidos > 0
+        ? `${(margemTotal / produtosValidos).toFixed(1)}%` : "0%";
 }
 
-// 9. ALERTA DE MARGEM MÍNIMA
-const margemMinimaInput = document.getElementById("margem-minima");
-if (margemMinimaInput) {
-    margemMinimaInput.addEventListener("input", () => {
-        const resultado = document.getElementById("resultado").innerText;
-        if (resultado !== "R$ 0,00") {
-            verificarMargemMinima();
-        }
+// =============================
+// ANIMAÇÃO / VIBRAÇÃO
+// =============================
+function animarNumero(valorFinal) {
+    const el = document.getElementById("resultado");
+    const isPercentage = modoAtual === "margem";
+    let start = null;
+    const duracao = 600;
+
+    function frame(t) {
+        if (!start) start = t;
+        const progress = Math.min((t - start) / duracao, 1);
+        const valor = valorFinal * progress;
+        el.innerText = isPercentage ? `${valor.toFixed(1)}%` : `R$ ${valor.toFixed(2)}`;
+        if (progress < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+}
+
+function vibrar() {
+    if (navigator.vibrate) navigator.vibrate(50);
+}
+
+// =============================
+// LIMPAR
+// =============================
+function limpar() {
+    document.getElementById("modoPreco").reset();
+    document.getElementById("modoMargem").reset();
+    document.getElementById("resultado").innerText = "R$ 0,00";
+    document.getElementById("resultado").className = "resultado";
+    document.getElementById("detalhes").innerText = "";
+    document.getElementById("viabilidade").innerHTML = "";
+    document.getElementById("breakdown").style.display = "none";
+    document.getElementById("chartContainer").style.display = "none";
+    if (window.priceChart) { window.priceChart.destroy(); window.priceChart = null; }
+}
+
+// =============================
+// COPIAR
+// =============================
+async function copiarResultado() {
+    const resultado = document.getElementById("resultado").innerText;
+    try {
+        await navigator.clipboard.writeText(resultado);
+        const btn = document.getElementById("btnCopiar");
+        btn.classList.add("copiado");
+        btn.textContent = "✓";
+        setTimeout(() => { btn.classList.remove("copiado"); btn.textContent = "📋"; }, 2000);
+    } catch (err) {
+        alert("Erro ao copiar: " + err);
+    }
+}
+
+// =============================
+// PRESETS PERSONALIZADOS
+// =============================
+function carregarPresetsPersonalizados() {
+    const presets = JSON.parse(localStorage.getItem("presetsPersonalizados")) || { preset1: 15, preset2: 20, preset3: 30 };
+    ["preset1", "preset2", "preset3"].forEach(key => {
+        const el = document.getElementById(key);
+        if (el) el.value = presets[key];
+    });
+    atualizarBotoesPreset(presets);
+}
+
+function atualizarBotoesPreset(presets) {
+    document.querySelectorAll(".preset-btn").forEach((btn, i) => {
+        const key = `preset${i + 1}`;
+        btn.textContent = `${presets[key]}%`;
+        btn.dataset.valor = presets[key];
     });
 }
 
+function salvarPresets() {
+    const presets = {
+        preset1: parseFloat(document.getElementById("preset1").value) || 15,
+        preset2: parseFloat(document.getElementById("preset2").value) || 20,
+        preset3: parseFloat(document.getElementById("preset3").value) || 30
+    };
+    localStorage.setItem("presetsPersonalizados", JSON.stringify(presets));
+    atualizarBotoesPreset(presets);
+    document.getElementById("presetsModal").style.display = "none";
+}
+
+// =============================
+// MARGEM MÍNIMA
+// =============================
 function verificarMargemMinima() {
     const margemMinima = parseFloat(document.getElementById("margem-minima").value) || 0;
     const detalhes = document.getElementById("detalhes").innerText;
-    
-    const margemMatch = detalhes.match(/Margem: ([\d.]+)%/);
-    if (!margemMatch) return;
-    
-    const margemReal = parseFloat(margemMatch[1]);
+    const match = detalhes.match(/Margem[:\s]+([\d.]+)%/);
+    if (!match) return;
+
+    const margemReal = parseFloat(match[1]);
     const alertaDiv = document.getElementById("alerta-margem");
-    
+
     if (margemMinima > 0) {
         alertaDiv.style.display = "block";
         if (margemReal < margemMinima) {
@@ -644,269 +803,110 @@ function verificarMargemMinima() {
     }
 }
 
-// 10. EXPORTAR RESULTADO
-document.getElementById("btnExportarPNG")?.addEventListener("click", async () => {
+// =============================
+// HISTÓRICO
+// =============================
+function salvarHistoricoComNome(dados) {
+    const historico = JSON.parse(localStorage.getItem("historico")) || [];
+    const nome = document.getElementById("nomeProduto").value || "Sem nome";
+    historico.unshift({ ...dados, nome, data: new Date().toLocaleString("pt-BR") });
+    localStorage.setItem("historico", JSON.stringify(historico));
+    document.getElementById("nomeProduto").value = "";
+    renderizarHistorico();
+}
+
+function renderizarHistorico() {
+    const lista = document.getElementById("listaHistorico");
+    if (!lista) return;
+
+    const historico = JSON.parse(localStorage.getItem("historico")) || [];
+    const filtro = document.getElementById("filtroHistorico")?.value.toLowerCase() || "";
+    lista.innerHTML = "";
+
+    historico
+        .filter(item => item.nome.toLowerCase().includes(filtro))
+        .slice(0, 10)
+        .forEach((item, _, arr) => {
+            const div = document.createElement("div");
+            div.className = "item-historico";
+
+            const conteudo = item.tipo === "PREÇO"
+                ? `<strong>${item.nome}</strong> — 💰 R$ ${parseFloat(item.valor).toFixed(2)} <small>(Margem: ${item.margem}%)</small>`
+                : `<strong>${item.nome}</strong> — 📊 ${item.valor}% <small>(Preço: R$ ${parseFloat(item.precoVenda).toFixed(2)})</small>`;
+
+            div.innerHTML = `
+                <div>
+                    ${conteudo}
+                    <br><small class="historico-data">${item.data}</small>
+                </div>
+                <button class="btn-remover-item" data-index="${historico.indexOf(item)}">✕</button>
+            `;
+            lista.appendChild(div);
+        });
+
+    document.querySelectorAll(".btn-remover-item").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            historico.splice(idx, 1);
+            localStorage.setItem("historico", JSON.stringify(historico));
+            renderizarHistorico();
+        });
+    });
+}
+
+// =============================
+// EXPORTAR
+// =============================
+async function exportarPNG() {
     const container = document.querySelector(".resultado-container");
     const canvas = await html2canvas(container, { backgroundColor: "#fff" });
     const link = document.createElement("a");
     link.href = canvas.toDataURL();
-    link.download = `calculo_${new Date().getTime()}.png`;
+    link.download = `calculo_${Date.now()}.png`;
     link.click();
-});
+}
 
-document.getElementById("btnExportarCSV")?.addEventListener("click", () => {
+function exportarCSV() {
     let csv = "";
-    let modoAtualVar = document.querySelector(".tab-btn.active")?.id || "tabPreco";
-    
-    if (modoAtualVar === "tabMultiplos") {
-        // Exportar dados do modo Múltiplos
+    if (modoAtual === "multiplos") {
         csv = "Nome,Custo,Frete,Taxa %,Imposto %,Margem %,Preço Final,Lucro,Margem Real %\n";
-        
         document.querySelectorAll(".tabela-row").forEach(row => {
-            const nome = row.querySelector(".col-nome").value || "Sem nome";
-            const custo = row.querySelector(".col-custo").value || "0";
-            const frete = row.querySelector(".col-frete").value || "0";
-            const taxa = row.querySelector(".col-taxa").value || "0";
-            const imposto = row.querySelector(".col-imposto").value || "0";
-            const margem = row.querySelector(".col-margem").value || "0";
-            const preco = row.querySelector(".col-preco").textContent || "-";
-            const lucro = row.querySelector(".col-lucro").textContent || "-";
-            const margemReal = row.querySelector(".col-margem-real").textContent || "-";
-            
-            csv += `"${nome}","${custo}","${frete}","${taxa}","${imposto}","${margem}","${preco}","${lucro}","${margemReal}"\n`;
+            csv += [
+                row.querySelector(".col-nome").value || "Sem nome",
+                row.querySelector(".col-custo").value || "0",
+                row.querySelector(".col-frete").value || "0",
+                row.querySelector(".col-taxa").value || "0",
+                row.querySelector(".col-imposto").value || "0",
+                row.querySelector(".col-margem").value || "0",
+                row.querySelector(".col-preco").textContent,
+                row.querySelector(".col-lucro").textContent,
+                row.querySelector(".col-margem-real").textContent
+            ].map(v => `"${v}"`).join(",") + "\n";
         });
-        
-        // Adicionar resumo
-        csv += "\n\nRESUMO\n";
-        csv += `Total de Produtos,${document.getElementById("totalProdutos").textContent}\n`;
-        csv += `Lucro Total,${document.getElementById("lucroTotal").textContent}\n`;
-        csv += `Margem Média,${document.getElementById("margemMedia").textContent}\n`;
+        csv += `\nTotal,,,,,,,${document.getElementById("lucroTotal").textContent},${document.getElementById("margemMedia").textContent}\n`;
     } else {
-        // Exportar histórico original
         const historico = JSON.parse(localStorage.getItem("historico")) || [];
         csv = "Nome,Tipo,Valor,Data\n";
         historico.forEach(item => {
             csv += `"${item.nome}","${item.tipo}","${item.valor}","${item.data}"\n`;
         });
     }
-    
     const link = document.createElement("a");
     link.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    link.download = `exportacao_${new Date().getTime()}.csv`;
+    link.download = `exportacao_${Date.now()}.csv`;
     link.click();
-});
+}
 
-document.getElementById("btnExportarPDF")?.addEventListener("click", async () => {
+function exportarPDF() {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF();
-    
     const resultado = document.getElementById("resultado").innerText;
     const detalhes = document.getElementById("detalhes").innerText;
-    
-    pdf.text("Cálculo de Precificação - ML", 10, 10);
-    pdf.text(`Resultado: ${resultado}`, 10, 20);
-    pdf.text(`Detalhes: ${detalhes}`, 10, 30);
-    pdf.text(`Data: ${new Date().toLocaleString()}`, 10, 40);
-    
-    pdf.save(`calculo_${new Date().getTime()}.pdf`);
-});
-
-// 11. MODO COMPARADOR
-function mudarModoComparador(modo) {
-    const modoPreco = document.getElementById("modoPreco");
-    const modoMargem = document.getElementById("modoMargem");
-    const modoComparador = document.getElementById("modoComparador");
-    const modoMultiplos = document.getElementById("modoMultiplos");
-    
-    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
-    
-    // Remove todas as classes modo-ativo/modo-inativo
-    modoPreco.classList.remove("modo-ativo");
-    modoMargem.classList.remove("modo-ativo");
-    modoComparador.classList.remove("modo-ativo");
-    modoMultiplos.classList.remove("modo-ativo");
-    
-    modoPreco.classList.add("modo-inativo");
-    modoMargem.classList.add("modo-inativo");
-    modoComparador.classList.add("modo-inativo");
-    modoMultiplos.classList.add("modo-inativo");
-    
-    if (modo === "comparador") {
-        document.getElementById("tabComparador").classList.add("active");
-        modoComparador.classList.remove("modo-inativo");
-        modoComparador.classList.add("modo-ativo");
-        document.getElementById("resultado").style.display = "none";
-        document.getElementById("viabilidade").style.display = "none";
-        document.getElementById("detalhes").style.display = "none";
-        document.getElementById("breakdown").style.display = "none";
-        document.getElementById("chartContainer").style.display = "none";
-        document.getElementById("btnCalcular").style.display = "none";
-        document.getElementById("btnLimpar").style.display = "none";
-    } else if (modo === "multiplos") {
-        document.getElementById("tabMultiplos").classList.add("active");
-        modoMultiplos.classList.remove("modo-inativo");
-        modoMultiplos.classList.add("modo-ativo");
-        document.getElementById("resultado").style.display = "none";
-        document.getElementById("viabilidade").style.display = "none";
-        document.getElementById("detalhes").style.display = "none";
-        document.getElementById("breakdown").style.display = "none";
-        document.getElementById("chartContainer").style.display = "none";
-        document.getElementById("btnCalcular").style.display = "none";
-        document.getElementById("btnLimpar").style.display = "none";
-    } else {
-        document.getElementById("tabPreco").classList.add("active");
-        modoPreco.classList.remove("modo-inativo");
-        modoPreco.classList.add("modo-ativo");
-        document.getElementById("resultado").style.display = "block";
-        document.getElementById("viabilidade").style.display = "block";
-        document.getElementById("detalhes").style.display = "block";
-        document.getElementById("btnCalcular").style.display = "block";
-        document.getElementById("btnLimpar").style.display = "block";
-    }
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Click Fun — Calculadora de Precificação", 10, 15);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(`Resultado: ${resultado}`, 10, 30);
+    pdf.text(`Detalhes: ${detalhes}`, 10, 40);
+    pdf.text(`Data: ${new Date().toLocaleString("pt-BR")}`, 10, 50);
+    pdf.save(`calculo_${Date.now()}.pdf`);
 }
-
-// Botões de comparador
-document.querySelectorAll(".btn-comparar").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-        const item = e.target.closest(".comparador-item");
-        const nome = item.querySelector(".comp-nome").value || "Produto";
-        const custo = parseFloat(item.querySelector(".comp-custo").value) || 0;
-        const frete = parseFloat(item.querySelector(".comp-frete").value) || 0;
-        const taxa = (parseFloat(item.querySelector(".comp-taxa").value) || 0) / 100;
-        const imposto = (parseFloat(item.querySelector(".comp-imposto").value) || 0) / 100;
-        const margem = (parseFloat(item.querySelector(".comp-margem").value) || 0) / 100;
-        
-        const preco = (custo + frete) / (1 - taxa - imposto - margem);
-        const lucro = preco - custo - frete - (preco * taxa) - (preco * imposto);
-        const margemReal = (lucro / preco) * 100;
-        
-        const resultado = item.querySelector(".comp-resultado");
-        resultado.innerHTML = `R$ ${preco.toFixed(2)}<br><small>Lucro: R$ ${lucro.toFixed(2)}</small><br><small>Margem: ${margemReal.toFixed(1)}%</small>`;
-    });
-});
-
-// 12. MODO MÚLTIPLOS PRODUTOS
-let produtosMultiplos = [];
-
-function adicionarLinhaTabela(dados = {}) {
-    const tabelaProdutos = document.getElementById("tabelaProdutos");
-    const id = Date.now();
-    
-    const row = document.createElement("div");
-    row.className = "tabela-row";
-    row.dataset.id = id;
-    
-    row.innerHTML = `
-        <input type="text" placeholder="Nome" class="col-nome" value="${dados.nome || ''}">
-        <input type="number" placeholder="0" class="col-custo" step="1" value="${dados.custo || ''}">
-        <input type="number" placeholder="0" class="col-frete" step="1" value="${dados.frete || ''}">
-        <input type="number" placeholder="0" class="col-taxa" step="1" value="${dados.taxa || ''}">
-        <input type="number" placeholder="0" class="col-imposto" step="1" value="${dados.imposto || ''}">
-        <input type="number" placeholder="0" class="col-margem" step="1" value="${dados.margem || ''}">
-        <div class="col-preco">-</div>
-        <div class="col-lucro">-</div>
-        <div class="col-margem-real">-</div>
-        <button type="button" class="btn-remover" data-id="${id}">Remover</button>
-    `;
-    
-    tabelaProdutos.appendChild(row);
-    
-    // Atualizar preço em tempo real
-    row.querySelectorAll("input").forEach(input => {
-        input.addEventListener("change", () => calcularLinhaTabela(row));
-        input.addEventListener("input", () => calcularLinhaTabela(row));
-    });
-    
-    // Remover linha
-    row.querySelector(".btn-remover").addEventListener("click", () => {
-        row.remove();
-        atualizarResumoMultiplos();
-    });
-}
-
-function calcularLinhaTabela(row) {
-    const custo = parseFloat(row.querySelector(".col-custo").value) || 0;
-    const frete = parseFloat(row.querySelector(".col-frete").value) || 0;
-    const taxa = (parseFloat(row.querySelector(".col-taxa").value) || 0) / 100;
-    const imposto = (parseFloat(row.querySelector(".col-imposto").value) || 0) / 100;
-    const margem = (parseFloat(row.querySelector(".col-margem").value) || 0) / 100;
-    
-    const denominador = 1 - taxa - imposto - margem;
-    
-    if (denominador <= 0) {
-        row.querySelector(".col-preco").textContent = "⚠️ Inválido";
-        row.querySelector(".col-lucro").textContent = "-";
-        row.querySelector(".col-margem-real").textContent = "-";
-        atualizarResumoMultiplos();
-        return;
-    }
-    
-    const preco = (custo + frete) / denominador;
-    
-    if (preco > 0 && isFinite(preco)) {
-        const lucro = preco - custo - frete - (preco * taxa) - (preco * imposto);
-        const margemReal = ((lucro / preco) * 100);
-        
-        row.querySelector(".col-preco").textContent = `R$ ${preco.toFixed(2)}`;
-        row.querySelector(".col-lucro").textContent = `R$ ${lucro.toFixed(2)}`;
-        row.querySelector(".col-margem-real").textContent = `${margemReal.toFixed(1)}%`;
-    } else {
-        row.querySelector(".col-preco").textContent = "-";
-        row.querySelector(".col-lucro").textContent = "-";
-        row.querySelector(".col-margem-real").textContent = "-";
-    }
-    
-    atualizarResumoMultiplos();
-}
-
-function atualizarResumoMultiplos() {
-    const linhas = document.querySelectorAll(".tabela-row");
-    let totalProdutos = linhas.length;
-    let lucroTotal = 0;
-    let margemTotal = 0;
-    let produtosValidos = 0;
-    
-    linhas.forEach(row => {
-        const custo = parseFloat(row.querySelector(".col-custo").value) || 0;
-        const frete = parseFloat(row.querySelector(".col-frete").value) || 0;
-        const taxa = (parseFloat(row.querySelector(".col-taxa").value) || 0) / 100;
-        const imposto = (parseFloat(row.querySelector(".col-imposto").value) || 0) / 100;
-        const margem = (parseFloat(row.querySelector(".col-margem").value) || 0) / 100;
-        
-        const denominador = 1 - taxa - imposto - margem;
-        
-        if (denominador > 0) {
-            const preco = (custo + frete) / denominador;
-            
-            if (preco > 0 && isFinite(preco)) {
-                const lucro = preco - custo - frete - (preco * taxa) - (preco * imposto);
-                const margemReal = ((lucro / preco) * 100);
-                
-                lucroTotal += lucro;
-                margemTotal += margemReal;
-                produtosValidos++;
-            }
-        }
-    });
-    
-    const margemMedia = produtosValidos > 0 ? (margemTotal / produtosValidos) : 0;
-    
-    document.getElementById("totalProdutos").textContent = totalProdutos;
-    document.getElementById("lucroTotal").textContent = `R$ ${lucroTotal.toFixed(2)}`;
-    document.getElementById("margemMedia").textContent = `${margemMedia.toFixed(1)}%`;
-}
-
-// Atualizar renderizarHistorico original para usar a nova versão
-const renderizarHistoricoOriginal = renderizarHistorico;
-window.renderizarHistorico = function() {
-    document.querySelectorAll(".tab-btn").forEach(btn => {
-        if (btn.id === "tabPreco") {
-            btn.addEventListener("click", () => {
-                document.getElementById("resultado").style.display = "block";
-                document.getElementById("viabilidade").style.display = "block";
-                document.getElementById("detalhes").style.display = "block";
-            });
-        }
-    });
-    renderizarHistoricoAtualizado();
-};

@@ -2,8 +2,13 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ML Calculadora</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Click Fun - Calculadora de Precificação</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Click Fun">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -33,42 +38,37 @@
             <label for="custo">Custo do Produto</label>
             <div class="input-wrapper">
                 <span class="currency">R$</span>
-                <input id="custo" type="number" placeholder="0,00" step="1">
+                <input id="custo" type="number" placeholder="0,00" step="0.01">
             </div>
         </div>
-
         <div class="input-group">
             <label for="frete">Frete</label>
             <div class="input-wrapper">
                 <span class="currency">R$</span>
-                <input id="frete" type="number" placeholder="0,00" step="1">
+                <input id="frete" type="number" placeholder="0,00" step="0.01">
             </div>
         </div>
-
         <div class="input-group">
             <label for="taxa">Taxa ML</label>
             <div class="input-wrapper">
                 <span class="currency">%</span>
-                <input id="taxa" type="number" placeholder="0" step="1">
+                <input id="taxa" type="number" placeholder="0" step="0.1">
             </div>
         </div>
-
         <div class="input-group">
             <label for="imposto">Imposto</label>
             <div class="input-wrapper">
                 <span class="currency">%</span>
-                <input id="imposto" type="number" placeholder="0" step="1">
+                <input id="imposto" type="number" placeholder="0" step="0.1">
             </div>
         </div>
-
         <div class="input-group">
             <label for="margem">Margem Desejada</label>
             <div class="input-wrapper">
                 <span class="currency">%</span>
-                <input id="margem" type="number" placeholder="0" step="1">
+                <input id="margem" type="number" placeholder="0" step="0.1">
             </div>
         </div>
-
         <div class="input-group margem-presets">
             <label>Margens Rápidas</label>
             <div class="preset-buttons">
@@ -86,39 +86,35 @@
             <label for="custoRev">Custo do Produto</label>
             <div class="input-wrapper">
                 <span class="currency">R$</span>
-                <input id="custoRev" type="number" placeholder="0,00" step="1">
+                <input id="custoRev" type="number" placeholder="0,00" step="0.01">
             </div>
         </div>
-
         <div class="input-group">
             <label for="freteRev">Frete</label>
             <div class="input-wrapper">
                 <span class="currency">R$</span>
-                <input id="freteRev" type="number" placeholder="0,00" step="1">
+                <input id="freteRev" type="number" placeholder="0,00" step="0.01">
             </div>
         </div>
-
         <div class="input-group">
             <label for="taxaRev">Taxa ML</label>
             <div class="input-wrapper">
                 <span class="currency">%</span>
-                <input id="taxaRev" type="number" placeholder="0" step="1">
+                <input id="taxaRev" type="number" placeholder="0" step="0.1">
             </div>
         </div>
-
         <div class="input-group">
             <label for="impostoRev">Imposto</label>
             <div class="input-wrapper">
                 <span class="currency">%</span>
-                <input id="impostoRev" type="number" placeholder="0" step="1">
+                <input id="impostoRev" type="number" placeholder="0" step="0.1">
             </div>
         </div>
-
         <div class="input-group">
             <label for="precoVenda">Preço de Venda</label>
             <div class="input-wrapper">
                 <span class="currency">R$</span>
-                <input id="precoVenda" type="number" placeholder="0,00" step="1">
+                <input id="precoVenda" type="number" placeholder="0,00" step="0.01">
             </div>
         </div>
     </form>
@@ -146,7 +142,7 @@
     <!-- ALERTA DE MARGEM MÍNIMA -->
     <div class="alerta-margem-section">
         <label for="margem-minima">⚠️ Alerta de Margem Mínima (%):</label>
-        <input type="number" id="margem-minima" placeholder="Ex: 10" class="input-margem-minima" step="1">
+        <input type="number" id="margem-minima" placeholder="Ex: 10" class="input-margem-minima" step="0.1">
         <div id="alerta-margem" class="alerta-margem" style="display: none;"></div>
     </div>
 
@@ -160,7 +156,7 @@
         </div>
     </div>
 
-    <!-- GRÁFICO DE PIZZA -->
+    <!-- GRÁFICO DE PIZZA (modo Preço) -->
     <div id="chartContainer" class="chart-container" style="display: none;">
         <h3>📈 Composição do Preço</h3>
         <canvas id="priceChart"></canvas>
@@ -172,107 +168,159 @@
         <div class="breakdown-items">
             <div class="breakdown-item">
                 <span>Custo</span>
-                <div class="breakdown-bar">
-                    <div id="bar-custo" class="bar custo"></div>
-                </div>
+                <div class="breakdown-bar"><div id="bar-custo" class="bar custo"></div></div>
                 <span id="valor-custo" class="valor">R$ 0,00</span>
             </div>
             <div class="breakdown-item">
                 <span>Frete</span>
-                <div class="breakdown-bar">
-                    <div id="bar-frete" class="bar frete"></div>
-                </div>
+                <div class="breakdown-bar"><div id="bar-frete" class="bar frete"></div></div>
                 <span id="valor-frete" class="valor">R$ 0,00</span>
             </div>
             <div class="breakdown-item">
                 <span>Taxa ML</span>
-                <div class="breakdown-bar">
-                    <div id="bar-taxa" class="bar taxa"></div>
-                </div>
+                <div class="breakdown-bar"><div id="bar-taxa" class="bar taxa"></div></div>
                 <span id="valor-taxa" class="valor">R$ 0,00</span>
             </div>
             <div class="breakdown-item">
                 <span>Imposto</span>
-                <div class="breakdown-bar">
-                    <div id="bar-imposto" class="bar imposto"></div>
-                </div>
+                <div class="breakdown-bar"><div id="bar-imposto" class="bar imposto"></div></div>
                 <span id="valor-imposto" class="valor">R$ 0,00</span>
             </div>
             <div class="breakdown-item destaque">
                 <span>💰 Lucro</span>
-                <div class="breakdown-bar">
-                    <div id="bar-lucro" class="bar lucro"></div>
-                </div>
+                <div class="breakdown-bar"><div id="bar-lucro" class="bar lucro"></div></div>
                 <span id="valor-lucro" class="valor">R$ 0,00</span>
             </div>
         </div>
     </div>
 
     <!-- MODO 3: COMPARADOR -->
-    <div id="modoComparador" class="modo-inativo" style="display: none;">
-        <h3>⚖️ Comparador de Produtos</h3>
+    <div id="modoComparador" class="modo-inativo">
+        <h3 class="modo-titulo">⚖️ Comparador de Produtos</h3>
+        <p class="modo-subtitulo">Preencha ao menos 2 produtos e calcule para ver o gráfico e a análise da IA.</p>
+
         <div class="comparador-container">
-            <div class="comparador-item">
+            <div class="comparador-item" data-index="0">
                 <h4>Produto 1</h4>
-                <input type="text" placeholder="Nome" class="comp-nome">
-                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Custo" class="comp-custo" step="1"></div>
-                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Frete" class="comp-frete" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Taxa" class="comp-taxa" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Imposto" class="comp-imposto" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Margem" class="comp-margem" step="1"></div>
+                <input type="text" placeholder="Nome" class="comp-nome comp-input">
+                <div class="comp-field">
+                    <span class="comp-label">Custo R$</span>
+                    <input type="number" placeholder="0,00" class="comp-custo comp-input" step="0.01">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Frete R$</span>
+                    <input type="number" placeholder="0,00" class="comp-frete comp-input" step="0.01">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Taxa ML %</span>
+                    <input type="number" placeholder="0" class="comp-taxa comp-input" step="0.1">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Imposto %</span>
+                    <input type="number" placeholder="0" class="comp-imposto comp-input" step="0.1">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Preço Venda R$</span>
+                    <input type="number" placeholder="0,00" class="comp-preco comp-input" step="0.01">
+                </div>
                 <button type="button" class="btn-comparar">Calcular</button>
-                <div class="comp-resultado">-</div>
+                <div class="comp-resultado">—</div>
             </div>
-            <div class="comparador-item">
+
+            <div class="comparador-item" data-index="1">
                 <h4>Produto 2</h4>
-                <input type="text" placeholder="Nome" class="comp-nome">
-                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Custo" class="comp-custo" step="1"></div>
-                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Frete" class="comp-frete" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Taxa" class="comp-taxa" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Imposto" class="comp-imposto" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Margem" class="comp-margem" step="1"></div>
+                <input type="text" placeholder="Nome" class="comp-nome comp-input">
+                <div class="comp-field">
+                    <span class="comp-label">Custo R$</span>
+                    <input type="number" placeholder="0,00" class="comp-custo comp-input" step="0.01">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Frete R$</span>
+                    <input type="number" placeholder="0,00" class="comp-frete comp-input" step="0.01">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Taxa ML %</span>
+                    <input type="number" placeholder="0" class="comp-taxa comp-input" step="0.1">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Imposto %</span>
+                    <input type="number" placeholder="0" class="comp-imposto comp-input" step="0.1">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Preço Venda R$</span>
+                    <input type="number" placeholder="0,00" class="comp-preco comp-input" step="0.01">
+                </div>
                 <button type="button" class="btn-comparar">Calcular</button>
-                <div class="comp-resultado">-</div>
+                <div class="comp-resultado">—</div>
             </div>
-            <div class="comparador-item">
+
+            <div class="comparador-item" data-index="2">
                 <h4>Produto 3</h4>
-                <input type="text" placeholder="Nome" class="comp-nome">
-                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Custo" class="comp-custo" step="1"></div>
-                <div class="input-wrapper"><span class="currency">R$</span><input type="number" placeholder="Frete" class="comp-frete" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Taxa" class="comp-taxa" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Imposto" class="comp-imposto" step="1"></div>
-                <div class="input-wrapper"><span class="currency">%</span><input type="number" placeholder="Margem" class="comp-margem" step="1"></div>
+                <input type="text" placeholder="Nome" class="comp-nome comp-input">
+                <div class="comp-field">
+                    <span class="comp-label">Custo R$</span>
+                    <input type="number" placeholder="0,00" class="comp-custo comp-input" step="0.01">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Frete R$</span>
+                    <input type="number" placeholder="0,00" class="comp-frete comp-input" step="0.01">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Taxa ML %</span>
+                    <input type="number" placeholder="0" class="comp-taxa comp-input" step="0.1">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Imposto %</span>
+                    <input type="number" placeholder="0" class="comp-imposto comp-input" step="0.1">
+                </div>
+                <div class="comp-field">
+                    <span class="comp-label">Preço Venda R$</span>
+                    <input type="number" placeholder="0,00" class="comp-preco comp-input" step="0.01">
+                </div>
                 <button type="button" class="btn-comparar">Calcular</button>
-                <div class="comp-resultado">-</div>
+                <div class="comp-resultado">—</div>
+            </div>
+        </div>
+
+        <!-- GRÁFICO COMPARATIVO -->
+        <div id="comparadorChartContainer" class="chart-container" style="display:none; margin-top: 20px;">
+            <h3>📊 Comparativo Visual</h3>
+            <canvas id="comparadorChart"></canvas>
+        </div>
+
+        <!-- SUGESTÃO IA -->
+        <div class="ia-section" style="margin-top: 16px;">
+            <button id="btnSugestaoIA" class="btn-ia" style="display:none;">🧠 Sugestão da IA</button>
+            <div id="iaResultBox" class="ia-result-box" style="display:none;">
+                <div class="ia-header">🤖 Análise do Assistente</div>
+                <div id="iaResultText" class="ia-result-text"></div>
             </div>
         </div>
     </div>
 
     <!-- MODO 4: MÚLTIPLOS PRODUTOS -->
-    <div id="modoMultiplos" class="modo-inativo" style="display: none;">
-        <h3>📦 Múltiplos Produtos</h3>
+    <div id="modoMultiplos" class="modo-inativo">
+        <h3 class="modo-titulo">📦 Múltiplos Produtos</h3>
+        <p class="modo-subtitulo">Adicione produtos e veja o cálculo em tempo real, com cor por margem.</p>
         <button id="btnAdicionarProduto" class="btn-adicionar">➕ Adicionar Produto</button>
-        <div id="tabelaProdutos" class="tabela-multiplos">
-            <div class="tabela-header">
-                <div>Nome</div>
-                <div>Custo</div>
-                <div>Frete</div>
-                <div>Taxa %</div>
-                <div>Imposto %</div>
-                <div>Margem %</div>
-                <div>Preço Final</div>
-                <div>Lucro</div>
-                <div>Margem Real %</div>
-                <div>Ação</div>
-            </div>
-        </div>
+        <div id="tabelaProdutos" class="tabela-multiplos"></div>
         <div class="resumo-multiplos" id="resumoMultiplos">
-            <p>Total: <strong id="totalProdutos">0</strong> produtos</p>
-            <p>Lucro Total: <strong id="lucroTotal">R$ 0,00</strong></p>
-            <p>Margem Média: <strong id="margemMedia">0%</strong></p>
+            <div class="resumo-item">
+                <span>Total de produtos</span>
+                <strong id="totalProdutos">0</strong>
+            </div>
+            <div class="resumo-item">
+                <span>Lucro Total</span>
+                <strong id="lucroTotal">R$ 0,00</strong>
+            </div>
+            <div class="resumo-item">
+                <span>Margem Média</span>
+                <strong id="margemMedia">0%</strong>
+            </div>
         </div>
     </div>
 
+    <!-- HISTÓRICO -->
     <div class="historico">
         <h3>📋 Últimos Cálculos</h3>
         <div class="historico-controls">
